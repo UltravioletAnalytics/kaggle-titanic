@@ -2,23 +2,24 @@
 Kaggle Titanic competition
 
 Adapted from myfirstforest.py comitted by @AstroDave 
-""" 
-import matplotlib.pyplot as plt
+"""
 import pandas as pd
 import numpy as np
 import time
 import csv as csv
-#import re
-from sklearn.cross_validation import cross_val_score
+import re
+from sklearn.grid_search import RandomizedSearchCV
 from sklearn.ensemble import RandomForestClassifier
+from scipy.stats import randint as sp_randint
+from operator import itemgetter
 
 
 # Globals
 ############################3
 ports_dict = {}               # Holds the possible values of 'Embarked' variable
 
-#cabinletter_matcher = re.compile("([a-zA-Z]+)")
-#cabinnumber_matcher = re.compile("([0-9]+)")
+cabinletter_matcher = re.compile("([a-zA-Z]+)")
+cabinnumber_matcher = re.compile("([0-9]+)")
 
 
 
@@ -57,9 +58,9 @@ def munge(df):
             df.loc[ (df.Fare.isnull()) & (df.Pclass == f+1 ), 'Fare'] = median_fare[f]
     
     # Cabin =>
-    #df['Cabin'][df.Cabin.isnull()] = 'U0'
-    #df['CabinLetter'] = df['Cabin'].map( lambda x : getCabinLetter(x))
-    #df['CabinNumber'] = df['Cabin'].map( lambda x : getCabinNumber(x))
+    df['Cabin'][df.Cabin.isnull()] = 'U0'
+    df['CabinLetter'] = df['Cabin'].map( lambda x : getCabinLetter(x))
+    df['CabinNumber'] = df['Cabin'].map( lambda x : getCabinNumber(x))
     
     return df
 
@@ -93,23 +94,22 @@ def getPorts(df):
     return ports_dict
 
 #==================================================================================================================
-# ### Find the letter component of the cabin variable) 
-# def getCabinLetter(cabin):
-#     match = cabinletter_matcher.search(cabin)
-#     if match:
-#         return ord(match.group())
-#     else:
-#         return 'U'
-# 
-# ### Find the number component of the cabin variable) 
-# def getCabinNumber(cabin):
-#     match = cabinnumber_matcher.search(cabin)
-#     if match:
-#         return float(match.group())
-#     else:
-#         return 0
-#==================================================================================================================
-    
+### Find the letter component of the cabin variable) 
+def getCabinLetter(cabin):
+    match = cabinletter_matcher.search(cabin)
+    if match:
+        return ord(match.group())
+    else:
+        return 'U'
+ 
+### Find the number component of the cabin variable) 
+def getCabinNumber(cabin):
+    match = cabinnumber_matcher.search(cabin)
+    if match:
+        return float(match.group())
+    else:
+        return 0
+
 
 
 
@@ -134,73 +134,53 @@ test_df  = test_df.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId'], axis=
 print 'Building RandomForestClassifier with ' + str(len(input_df.columns)) \
       + ' columns: ' + str(list(input_df.columns.values))
     
-print "Training examples: " + str(input_df.shape[0])
+print "Number of training examples: " + str(input_df.shape[0])
 
-#==================================================================================================================
-## Split training data into training and validation sets since we don't simple access to actual test set
-# validation_rows = rnd.sample(input_df.index, int(input_df.shape[0] * 0.15))
-# val_data = input_df.iloc[validation_rows].values
-# train_data = input_df.drop(validation_rows).values
-#==================================================================================================================
 train_data = input_df.values
 test_data = test_df.values
 
-### Experiment with the number of estimators and number of examples used in the RandomForest
-best_score = 0.0
-best_score_e = 0
-best_score_n = 0
-train_scores = {}
-
-e = 50              # number of estimators, test multiples of 50 up to 500
-while e <= 500:
-    #==============================================================================================================
-    # n = 500
-    # while n < train_data.shape[0]:
-    #     print 'Training with ' + str(n) + " training examples and " + str(e) + ' estimators...'
-    #     forest = RandomForestClassifier(n_estimators=e).fit( train_data[0:n,1::], train_data[0:n,0] )
-    #     scores = cross_val_score(forest, train_data[0:n, 1::], train_data[0:n,0], cv=5)
-    #     #print "cross_val_score() mean: " + str(scores.mean()) + " stddev: " + str(scores.std())
-    #     if scores.mean() - scores.std() > best_score:
-    #         best_score = scores.mean() - scores.std()
-    #         best_score_e = e
-    #         best_score_n = n
-    #     n += 50
-    #==============================================================================================================
-         
-    print 'Training with all training examples and ' + str(e) + ' estimators...'
-    forest = RandomForestClassifier(n_estimators=e).fit( train_data[0::,1::], train_data[0::,0] )
-    scores = cross_val_score(forest, train_data[0::, 1::], train_data[0::,0], cv=10)
-    if scores.mean() - scores.std() > best_score:
-            best_score = scores.mean() - scores.std()
-            best_score_e = e
-            best_score_n = train_data.shape[0]
+# Utility function to report optimal parameters
+def report(grid_scores, n_top=3):
+    params = None
     
-    # set the score to optimize the lower bound as calculated by the cross validation
-    train_scores[e] = scores.mean() - scores.std()
+    top_scores = sorted(grid_scores, key=itemgetter(1), reverse=True)[:n_top]
+    for i, score in enumerate(top_scores):
+        print("Model with rank: {0}".format(i + 1))
+        print("Mean validation score: {0:.3f} (std: {1:.3f})".format(
+              score.mean_validation_score,
+              np.std(score.cv_validation_scores)))
+        print("Parameters: {0}".format(score.parameters))
+        print("")
+        
+        if params == None:
+            params = score.parameters
     
-    e += 50
+    return params
+    
 
-# Map the results of the estimators test
-results_s = pd.Series(train_scores)
-plt.scatter(results_s.keys(), results_s.values)
-plt.xlabel("Number of Estimators")
-plt.ylabel("Lower bound cross validation score")
-plt.show(block=True)
+# specify model parameters and distributions to sample from
+params = {"n_estimators": sp_randint(20, 100),
+          "max_depth": [3, None],
+          "max_features": sp_randint(1, train_data.shape[1] - 1),
+          "min_samples_split": sp_randint(1, int(train_data.shape[0] / 10)),
+          "min_samples_leaf": sp_randint(1, int(train_data.shape[0] / 20)),
+          "bootstrap": [True, False],
+          "criterion": ["gini", "entropy"]}
 
-print "Best score: " + str(best_score) + " found with estimators: " + str(best_score_e) \
-        + ", examples: " + str(best_score_n)
+# run randomized search to find the optimal parameters
+n_iter_search = 500
+forest = RandomForestClassifier()
+random_search = RandomizedSearchCV(forest, param_distributions=params, n_iter=n_iter_search)
+random_search.fit(train_data[0::,1::], train_data[0::,0])
+best_params = report(random_search.grid_scores_)
 
-# Run a final test with the best combination of examples and estimators as determined by cross validation
-print 'Training with ' + str(best_score_n) + ' training examples and ' + str(best_score_e) + ' estimators...'
-forest = RandomForestClassifier(n_estimators=best_score_e).fit( train_data[0:best_score_n,1::], \
-                                                                train_data[0:best_score_n,0] )
-scores = cross_val_score(forest, train_data[0:best_score_n, 1::], train_data[0:best_score_n,0], cv=5)
-print "cross_val_score() mean: " + str(scores.mean()) + " stddev: " + str(scores.std())
-
-# Predict the survival of the test set
+ 
+# Using the optimal parameters, predict the survival of the test set
 print 'Predicting...'
+forest = RandomForestClassifier(**best_params)
+forest.fit(train_data[0::,1::], train_data[0::,0])
 output = forest.predict(test_data).astype(int)
-
+ 
 # write results
 predictions_file = open("data/results/randforest" + str(int(time.time())) + ".csv", "wb")
 open_file_object = csv.writer(predictions_file)
