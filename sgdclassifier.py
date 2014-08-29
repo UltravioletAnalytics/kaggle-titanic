@@ -8,7 +8,10 @@ import numpy as np
 import time
 import csv as csv
 import re
+import sklearn.cross_validation
+import matplotlib.pyplot as plt
 from sklearn.grid_search import RandomizedSearchCV
+from sklearn.learning_curve import learning_curve
 from sklearn.linear_model import SGDClassifier
 from operator import itemgetter
 
@@ -38,20 +41,24 @@ def munge(df):
     #     df['Embarked_' + str(port)] = np.where(df['Embarked'] == port, 1, 0)
     #==============================================================================================================
     
-    # Age => continuous value and missing values are replaced with median value
-    median_age = df['Age'].dropna().median()
-    if len(df.Age[ df.Age.isnull() ]) > 0:
-        df.loc[ (df.Age.isnull()), 'Age'] = median_age
-    # scale age between 1 and 0
-    df['Age'] = df['Age'].map( lambda x: (x - df['Age'].min())/(df['Age'].max()-df['Age'].min()) )
+    #==============================================================================================================
+    # # Age => continuous value and missing values are replaced with median value
+    # median_age = df['Age'].dropna().median()
+    # if len(df.Age[ df.Age.isnull() ]) > 0:
+    #     df.loc[ (df.Age.isnull()), 'Age'] = median_age
+    # # scale age between 1 and 0
+    # df['Age'] = df['Age'].map( lambda x: (x - df['Age'].min())/(df['Age'].max()-df['Age'].min()) )
+    #==============================================================================================================
     
     
-    # missing familial counts are 0
-    df['SibSp'] = df['SibSp'].fillna(0)
-    df['Parch'] = df['Parch'].fillna(0)
-    # scale SibSp and parch between 1 and 0
-    df['SibSp'] = df['SibSp'].map( lambda x: (x - df['SibSp'].min())/float(df['SibSp'].max()-df['SibSp'].min()) )
-    df['Parch'] = df['Parch'].map( lambda x: (x - df['Parch'].min())/float(df['Parch'].max()-df['Parch'].min()) )
+    #==============================================================================================================
+    # # missing familial counts are 0
+    # df['SibSp'] = df['SibSp'].fillna(0)
+    # df['Parch'] = df['Parch'].fillna(0)
+    # # scale SibSp and parch between 1 and 0
+    # df['SibSp'] = df['SibSp'].map( lambda x: (x - df['SibSp'].min())/float(df['SibSp'].max()-df['SibSp'].min()) )
+    # df['Parch'] = df['Parch'].map( lambda x: (x - df['Parch'].min())/float(df['Parch'].max()-df['Parch'].min()) )
+    #==============================================================================================================
 
 
     # Fare => if fare is missing, use the median for the passenger class
@@ -136,6 +143,66 @@ def report(grid_scores, n_top=ensemble_size):
     
     return params
 
+def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None,
+                        n_jobs=1, train_sizes=np.linspace(.02, 0.5, 50)):
+    """
+    Generate a simple plot of the test and traning learning curve.
+
+    Parameters
+    ----------
+    estimator : object type that implements the "fit" and "predict" methods
+        An object of that type which is cloned for each validation.
+
+    title : string
+        Title for the chart.
+
+    X : array-like, shape (n_samples, n_features)
+        Training vector, where n_samples is the number of samples and
+        n_features is the number of features.
+
+    y : array-like, shape (n_samples) or (n_samples, n_features), optional
+        Target relative to X for classification or regression;
+        None for unsupervised learning.
+
+    ylim : tuple, shape (ymin, ymax), optional
+        Defines minimum and maximum yvalues plotted.
+
+    cv : integer, cross-validation generator, optional
+        If an integer is passed, it is the number of folds (defaults to 3).
+        Specific cross-validation objects can be passed, see
+        sklearn.cross_validation module for the list of possible objects
+
+    n_jobs : integer, optional
+        Number of jobs to run in parallel (default 1).
+    """
+    plt.figure()
+    plt.title(title)
+    if ylim is not None:
+        plt.ylim(*ylim)
+    plt.xlabel("Training examples")
+    plt.ylabel("Score")
+    train_sizes, train_scores, test_scores = learning_curve(
+        estimator, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes)
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.std(test_scores, axis=1)
+    plt.grid()
+
+    plt.fill_between(train_sizes, train_scores_mean - train_scores_std,
+                     train_scores_mean + train_scores_std, alpha=0.1,
+                     color="r")
+    plt.fill_between(train_sizes, test_scores_mean - test_scores_std,
+                     test_scores_mean + test_scores_std, alpha=0.1, color="g")
+    plt.plot(train_sizes, train_scores_mean, 'o-', color="r",
+             label="Training score")
+    plt.plot(train_sizes, test_scores_mean, 'o-', color="g",
+             label="Cross-validation score")
+
+    plt.legend(loc="best")
+    return plt
+
+
 
 # Script
 ###################################
@@ -152,8 +219,8 @@ test_df  = munge(test_df)
 ids = test_df['PassengerId'].values
 
 # Remove variables that we couldn't transform into features:
-input_df = input_df.drop(['Name', 'Sex', 'Embarked', 'Ticket', 'Cabin', 'PassengerId'], axis=1) 
-test_df  = test_df.drop(['Name', 'Sex', 'Embarked', 'Ticket', 'Cabin', 'PassengerId'], axis=1) 
+input_df = input_df.drop(['Name', 'Sex', 'Embarked', 'Ticket', 'Cabin', 'PassengerId', "Age", "SibSp", "Parch"], axis=1) 
+test_df  = test_df.drop(['Name', 'Sex', 'Embarked', 'Ticket', 'Cabin', 'PassengerId', "Age", "SibSp", "Parch"], axis=1) 
 
 print 'Building SGD Classifier with ' + str(len(input_df.columns)) \
       + ' columns: ' + str(list(input_df.columns.values))
@@ -161,10 +228,16 @@ print 'Building SGD Classifier with ' + str(len(input_df.columns)) \
 print "Number of training examples: " + str(input_df.shape[0])
 
 train_data = input_df.values
+X = train_data[0::, 1::]
+y = train_data[0::, 0]
 test_data = test_df.values
 
+
+
+
+
 # specify model parameters and distributions to sample from
-params = {"loss": ["log", "modified_huber", "perceptron", "huber", "epsilon_insensitive"], #"hinge", 
+params = {"loss": ["hinge", "log", "modified_huber", "perceptron", "huber", "epsilon_insensitive"],
           "alpha": [0.0001,0.0005,0.001,0.005],
           "penalty": ["l1", "l2", "elasticnet"],
           "n_iter": [5],
@@ -175,31 +248,43 @@ params = {"loss": ["log", "modified_huber", "perceptron", "huber", "epsilon_inse
           }
  
 # run randomized search to find the optimal parameters
-n_iter_search = 1000
-sgd = SGDClassifier()
-random_search = RandomizedSearchCV(sgd, param_distributions=params, n_iter=n_iter_search)
-random_search.fit(train_data[0::,1::], train_data[0::,0])
-best_params = report(random_search.grid_scores_)
- 
-  
-# Using the optimal parameters, predict the survival of the test set
-print 'Predicting...'
-output = pd.Series(np.zeros(test_data.shape[0]).astype(int))
-for bp in best_params:
-    sgd = SGDClassifier(**bp).fit(train_data[0::,1::], train_data[0::,0])
-    output += sgd.predict(test_data).astype(int)
-
-output = output.map( lambda x: np.where(x >= ensemble_size/2, 1, 0) )
-
-survivedPct = output.values.sum() / float(output.shape[0])
-print survivedPct
-print 1.0 - survivedPct
 
 
-# write results
-predictions_file = open("data/results/sgdclassifier" + str(int(time.time())) + ".csv", "wb")
-open_file_object = csv.writer(predictions_file)
-open_file_object.writerow(["PassengerId","Survived"])
-open_file_object.writerows(zip(ids, output))
-predictions_file.close()
-print 'Done.'
+cv = sklearn.cross_validation.ShuffleSplit(X.shape[0], n_iter=5, train_size=0.7, test_size=0.3, 
+                                           random_state=np.random.randint(0,666))
+title = "Learning Curves (SGD, loss=log)"
+sgd = SGDClassifier(loss="log", n_iter=1000)
+plot_learning_curve(sgd, title, X, y, ylim=(0.5, 1.0), cv=cv, n_jobs=1)
+
+plt.show()
+
+
+
+#==================================================================================================================
+# random_search = RandomizedSearchCV(sgd, param_distributions=params, n_iter=n_iter_search)
+# random_search.fit(X, y)
+# best_params = report(random_search.grid_scores_)
+#  
+#   
+# # Using the optimal parameters, predict the survival of the test set
+# print 'Predicting...'
+# output = pd.Series(np.zeros(test_data.shape[0]).astype(int))
+# for bp in best_params:
+#     sgd = SGDClassifier(**bp).fit(train_data[0::,1::], train_data[0::,0])
+#     output += sgd.predict(test_data).astype(int)
+# 
+# output = output.map( lambda x: np.where(x >= ensemble_size/2, 1, 0) )
+# 
+# survivedPct = output.values.sum() / float(output.shape[0])
+# print survivedPct
+# print 1.0 - survivedPct
+# 
+# 
+# # write results
+# predictions_file = open("data/results/sgdclassifier" + str(int(time.time())) + ".csv", "wb")
+# open_file_object = csv.writer(predictions_file)
+# open_file_object.writerow(["PassengerId","Survived"])
+# open_file_object.writerows(zip(ids, output))
+# predictions_file.close()
+# print 'Done.'
+#==================================================================================================================
