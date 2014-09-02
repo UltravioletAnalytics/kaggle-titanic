@@ -25,7 +25,7 @@ from operator import itemgetter
 # Functions
 ############################
 # Utility function to report optimal parameters
-def report(grid_scores, n_top=3):
+def report(grid_scores, n_top=5):
     params = None
     
     top_scores = sorted(grid_scores, key=itemgetter(1), reverse=True)[:n_top]
@@ -104,13 +104,14 @@ if __name__ == '__main__':
               "power_t": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1] }
     
     perceptron_params = {"loss": ["perceptron"],
-              "alpha": 10.0**-np.arange(1,7),
-              "penalty": ["l1", "l2", "elasticnet"],
               "n_iter": [n_iter],
+              "alpha": 10.0**-np.arange(2,6),
+              "penalty": ["elasticnet"],
+              "l1_ratio": 0.2*np.arange(0,5),
               "shuffle": [True],
-              "learning_rate": ['constant', 'optimal', 'invscaling'],
-              "eta0": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1],
-              "power_t": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1] }
+              "learning_rate": ['constant', 'optimal'],#, 'invscaling'],
+              "eta0": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1] }#,
+              #"power_t": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1] }
     
     params = { "loss": "log",
                "n_iter": n_iter,
@@ -129,22 +130,23 @@ if __name__ == '__main__':
     # random_search.fit(X, y)
     # best_params = report(random_search.grid_scores_)
     #==================================================================================================================
-    #==============================================================================================================
-    # print 'Hyperparameter optimization...'
-    # grid_search = GridSearchCV(sgd, log_params, cv=10, n_jobs=-1)
-    # grid_search.fit(X, y)
-    # best_params = report(grid_search.grid_scores_)
-    #==============================================================================================================
+
+    print 'Hyperparameter optimization...'
+    grid_search = GridSearchCV(sgd, perceptron_params, cv=20, n_jobs=-1, verbose=1)
+    grid_search.fit(X, y)
+    best_params = report(grid_search.grid_scores_)
     
     
     # Plot the learning curve for the model with the best parameters
     print 'Plotting learning curve...'
     cv = ShuffleSplit(X.shape[0], n_iter=30, test_size=0.2, 
                       random_state=np.random.randint(0,123456789))
-    title = "SGDClassifier: ", params
-    sgd = SGDClassifier(**params)
+    title = "SGDClassifier: ", best_params
+    sgd = SGDClassifier(**best_params)
     learningcurve.plot_learning_curve(sgd, title, X, y, ylim=(0.5, 1.0), cv=cv, n_jobs=-1)
     
+    
+    sys.exit()
     
     # Using the optimal parameters, predict the survival of the test set
     print 'Predicting test set...'
