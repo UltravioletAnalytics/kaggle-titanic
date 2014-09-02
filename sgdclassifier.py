@@ -77,12 +77,24 @@ hinge_params = {"loss": ["hinge"],
                 "n_iter": [n_iter],
                 "alpha": [0.0001, 0.00001],
                 "penalty": ["elasticnet"],
-                "l1_ratio": [0, 0.2, 0.4, 0.6, 0.8, 1],
+                "l1_ratio": [0., 0.1, 0.2, 0.4, 0.6, 0.8, 1],
                 "shuffle": [True],
-                "learning_rate": ['optimal']
+                "learning_rate": ['optimal'],
+                "class_weight": ["auto"]
                 }
 
-log_params = {"loss": ["hinge", "log", "modified_huber", "perceptron", "huber", "epsilon_insensitive"],
+log_params = {"loss": ["log"],
+          "alpha": 10.0**-np.arange(1,7),
+          "penalty": ["l1", "l2", "elasticnet"],
+          "n_iter": [n_iter],
+          "shuffle": [True],
+          "learning_rate": ['constant', 'optimal', 'invscaling'],
+          "eta0": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1],
+          "power_t": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1],
+          "class_weight": ["auto"]
+          }
+
+modified_huber_params = {"loss": ["hinge", "log", "modified_huber", "perceptron", "huber", "epsilon_insensitive"],
           "alpha": 10.0**-np.arange(1,7),
           "penalty": ["l1", "l2", "elasticnet"],
           "n_iter": [n_iter],
@@ -92,7 +104,7 @@ log_params = {"loss": ["hinge", "log", "modified_huber", "perceptron", "huber", 
           "power_t": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1]
           }
 
-modified_huber_params = {"loss": ["hinge", "log", "modified_huber", "perceptron", "huber", "epsilon_insensitive"],
+perceptron_params = {"loss": ["perceptron"],
           "alpha": 10.0**-np.arange(1,7),
           "penalty": ["l1", "l2", "elasticnet"],
           "n_iter": [n_iter],
@@ -107,7 +119,7 @@ params = {"loss": "hinge",
             "n_iter": n_iter,
             "alpha": 0.0001,
             "penalty": "elasticnet",
-            "l1_ratio": 0.2,
+            "l1_ratio": 1.,
             "shuffle": True,
             "learning_rate": 'optimal'
             }
@@ -129,7 +141,7 @@ sgd = SGDClassifier()
 #==================================================================================================================
 
 # Plot the learning curve for the model with the best parameters
-cv = ShuffleSplit(X.shape[0], n_iter=2, test_size=0.25, 
+cv = ShuffleSplit(X.shape[0], n_iter=40, test_size=0.2, 
                   random_state=np.random.randint(0,123456789))
 title = "SGDClassifier" + str(params)
 sgd = SGDClassifier(**params)
