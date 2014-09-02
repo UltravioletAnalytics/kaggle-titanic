@@ -30,7 +30,9 @@ def processCabin(df):
     # if keep_binary:
     #     for letter in df.CabinLetter.unique():
     #         df['CabinLetter_' + str(letter)] = np.where(df['CabinLetter'] == letter, 1, 0)
-    #     
+    #==============================================================================================================
+         
+    #==============================================================================================================
     # # create feature for the numerical part of the cabin number
     # df['CabinNumber'] = df['Cabin'].map( lambda x : getCabinNumber(x))
     # # scale the number to process as a continuous feature
@@ -76,13 +78,15 @@ def processAge(df):
     # df['isChild'] = df[np.where(df.Age < 18, 1, 0)]
     #==============================================================================================================
     
-    # bin into quintiles and create binary features
-    df['Age_bin'] = pd.qcut(df['Age'], 4)
-    if keep_binary:
-        for ac in df.Age_bin.unique():
-            df['Age_bin_' + str(ac)] = np.where(df['Age_bin'] == ac, 1, 0)
-    if not keep_bins:
-        df.drop('Age_bin', axis=1, inplace=True)
+    #==============================================================================================================
+    # # bin into quintiles and create binary features
+    # df['Age_bin'] = pd.qcut(df['Age'], 4)
+    # if keep_binary:
+    #     for ac in df.Age_bin.unique():
+    #         df['Age_bin_' + str(ac)] = np.where(df['Age_bin'] == ac, 1, 0)
+    # if not keep_bins:
+    #     df.drop('Age_bin', axis=1, inplace=True)
+    #==============================================================================================================
     
     if not keep_raw:
         df.drop('Age', axis=1, inplace=True)
@@ -114,13 +118,15 @@ def processFare(df):
         df['Fare_scaled'] = df['Fare']
         scaler.fit_transform(df['Fare_scaled'])
     
-    # bin into quintiles for binary features
-    df['Fare_bin'] = pd.qcut(df['Fare'], 4)
-    if keep_binary:
-        for farebin in df.Fare_bin.unique():
-            df['Fare_bin_' + str(farebin)] = np.where(df['Fare_bin'] == farebin, 1, 0)
-    if not keep_bins:
-        df.drop('Fare_bin', axis=1, inplace=True)
+    #==============================================================================================================
+    # # bin into quintiles for binary features
+    # df['Fare_bin'] = pd.qcut(df['Fare'], 4)
+    # if keep_binary:
+    #     for farebin in df.Fare_bin.unique():
+    #         df['Fare_bin_' + str(farebin)] = np.where(df['Fare_bin'] == farebin, 1, 0)
+    # if not keep_bins:
+    #     df.drop('Fare_bin', axis=1, inplace=True)
+    #==============================================================================================================
     
     if not keep_raw:
         df.drop('Fare', axis=1, inplace=True)
@@ -135,12 +141,10 @@ def processEmbarked(df):
     # Lets turn this into a number so it conforms to decision tree feature requirements
     df['Embarked'] = df['Embarked'].apply(lambda x: ord(x))
         
-    #==============================================================================================================
-    # # Create binary features for each port
-    # if keep_binary:
-    #     for port in df.Embarked.unique():
-    #         df['Embarked_' + str(port)] = np.where(df['Embarked'] == port, 1, 0)
-    #==============================================================================================================
+    # Create binary features for each port
+    if keep_binary:
+        for port in df.Embarked.unique():
+            df['Embarked_' + str(port)] = np.where(df['Embarked'] == port, 1, 0)
 
     if not keep_raw:
         df.drop('Embarked', axis=1, inplace=True)
@@ -149,38 +153,37 @@ def processPClass(df):
     # Replace missing values with mode
     df.Pclass[ df.Pclass.isnull() ] = df.Pclass.dropna().mode().values
     
-    #==============================================================================================================
-    # # create binary features
-    # if keep_binary:
-    #     for pc in df.Pclass.unique():
-    #         df['Pclass_' + str(pc)] = np.where(df['Pclass'] == pc, 1, 0)
-    #==============================================================================================================
+    # create binary features
+    if keep_binary:
+        for pc in df.Pclass.unique():
+            df['Pclass_' + str(pc)] = np.where(df['Pclass'] == pc, 1, 0)
 
     if not keep_raw:
         df.drop('Pclass', axis=1, inplace=True)
 
 def processFamily(df):
+    # perhaps the number of siblings/spouses and parents/children aren't as important as the total family size
+    df['familySize'] = df.SibSp + df.Parch
+        
+    # First process scaling
+    if keep_scaled:
+        scaler = preprocessing.StandardScaler()
+        df['SibSp_scaled'] = scaler.fit_transform(df['SibSp'])
+        df['Parch_scaled'] = scaler.fit_transform(df['Parch'])
+        df['familySize_scaled'] = scaler.fit_transform(df['familySize'])
+     
     #==============================================================================================================
-    # # First process scaling
-    # if keep_scaled:
-    #     scaler = preprocessing.StandardScaler()
-    #     df['SibSp_scaled'] = scaler.fit_transform(df['SibSp'])
-    #     df['Parch_scaled'] = scaler.fit_transform(df['Parch'])
-    # 
     # # Then build binary features
     # if keep_binary:
     #     for s in df.SibSp.unique():
     #         df['SibSp_bin_' + str(s)] = np.where(df['SibSp'] == s, 1, 0)
     #     for p in df.Parch.unique():
     #         df['Parch_bin_' + str(p)] = np.where(df['Parch'] == p, 1, 0)
-    # 
     #==============================================================================================================
     
-    # perhaps the number of siblings/spouses and parents/children aren't as important as the total family size
-    df['familySize'] = df.SibSp + df.Parch
-    
     if not keep_raw:
-        df.drop(['SibSp', 'Parch'], axis=1, inplace=True)
+        df.drop(['SibSp', 'Parch', 'familySize'], axis=1, inplace=True)
+        
 
 def processSex(df):
     df['Gender'] = np.where(df['Sex'] == 'male', 1, 0)

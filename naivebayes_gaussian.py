@@ -43,7 +43,7 @@ def report(grid_scores, n_top=3):
 # Script
 ###################################
 
-input_df, test_df = loaddata.getDataSets(bins=False, scaled=False, raw=False)
+input_df, test_df = loaddata.getDataSets(bins=False, scaled=True, raw=False)
 
 # Collect the test data's PassengerIds
 ids = test_df['PassengerId'].values
@@ -76,11 +76,11 @@ test_data = test_df.values
 
 
 # Plot the learning curve for the model
-cv = sklearn.cross_validation.ShuffleSplit(X.shape[0], n_iter=10, train_size=0.7, test_size=0.3, 
+cv = sklearn.cross_validation.ShuffleSplit(X.shape[0], n_iter=100, train_size=0.7, test_size=0.3, 
                                            random_state=np.random.randint(0,123456789))
-title = "Learning Curves (BernoulliNB)"
-bnb = naive_bayes.BernoulliNB()
-learningcurve.plot_learning_curve(bnb, title, X, y, (0.6, 0.9), cv=cv, n_jobs=1)
+title = "Learning Curves (GaussianNB)"
+gnb = naive_bayes.GaussianNB()
+learningcurve.plot_learning_curve(gnb, title, X, y, (0.6, 0.9), cv=cv, n_jobs=1)
 
 
 # Using the optimal parameters, predict the survival of the test set
@@ -90,7 +90,7 @@ bnb.fit(train_data[0::,1::], train_data[0::,0])
 output = bnb.predict(test_data).astype(int)
   
 # write results
-predictions_file = open("data/results/naivebayes_bernoulli" + str(int(time.time())) + ".csv", "wb")
+predictions_file = open("data/results/naivebayes_gaussian" + str(int(time.time())) + ".csv", "wb")
 open_file_object = csv.writer(predictions_file)
 open_file_object.writerow(["PassengerId","Survived"])
 open_file_object.writerows(zip(ids, output))

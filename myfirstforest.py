@@ -20,14 +20,6 @@ from scipy.stats import randint as sp_randint
 from operator import itemgetter
 
 
-# Globals
-############################3
-ports_dict = {}               # Holds the possible values of 'Embarked' variable
-
-cabinletter_matcher = re.compile("([a-zA-Z]+)")
-cabinnumber_matcher = re.compile("([0-9]+)")
-
-
 
 # Functions
 ############################
@@ -107,8 +99,7 @@ learningcurve.plot_learning_curve(forest, title, X, y, (0.6, 1.01), cv=cv, n_job
 
 # Using the optimal parameters, predict the survival of the test set
 print "Predicting with n_estimators=" + str(trees) + ", max_depth=" + str(depth)
-forest = RandomForestClassifier(n_estimators=trees, max_depth=depth, oob_score=True)
-forest.fit(X, y)
+forest = RandomForestClassifier(n_estimators=trees, max_depth=depth, oob_score=True).fit(X, y)
 print forest.oob_score_
 output = forest.predict(test_data).astype(int)
 
