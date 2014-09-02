@@ -79,10 +79,18 @@ if __name__ == '__main__':
                     "n_iter": [n_iter],
                     "alpha": [0.0001, 0.00001],
                     "penalty": ["elasticnet"],
-                    "l1_ratio": [0., 0.1, 0.2, 0.4, 0.6, 0.8, 1],
+                    "l1_ratio": 0.2*np.arange(0,5),
                     "shuffle": [True],
                     "learning_rate": ['optimal'],
                     "class_weight": ["auto"] }
+    
+    modified_huber_params = {"loss": ["modified_huber"],
+              "n_iter": [n_iter],
+              "alpha": [0.01, 0.001],
+              "penalty": ["elasticnet"],
+              "l1_ratio": 0.1*np.arange(0,10),
+              "shuffle": [True],
+              "learning_rate": ['optimal'] }
     
     log_params = {"loss": ["log"],
               "n_iter": [n_iter],
@@ -94,28 +102,19 @@ if __name__ == '__main__':
               "eta0": 0.02*np.arange(0,4)+.01,
               "class_weight": ["auto"] }
     
-    modified_huber_params = {"loss": ["modified_huber"],
-              "alpha": 10.0**-np.arange(1,7),
-              "penalty": ["l1", "l2", "elasticnet"],
-              "n_iter": [n_iter],
-              "shuffle": [True],
-              "learning_rate": ['constant', 'optimal', 'invscaling'],
-              "eta0": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1],
-              "power_t": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1] }
-    
     perceptron_params = {"loss": ["perceptron"],
               "n_iter": [n_iter],
               "alpha": 10.0**-np.arange(2,6),
               "penalty": ["elasticnet"],
               "l1_ratio": 0.2*np.arange(0,5),
               "shuffle": [True],
-              "learning_rate": ['constant', 'optimal'],#, 'invscaling'],
-              "eta0": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1] }#,
-              #"power_t": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1] }
+              "learning_rate": ['invscaling', 'constant', 'optimal'],
+              "eta0": [0.001,0.005,0.01,0.05,0.1],
+              "power_t": [0.0001,0.0005,0.001,0.005,0.01,0.05,0.1] }
     
-    params = { "loss": "log",
+    params = { "loss": "perceptron",
                "n_iter": n_iter,
-               "alpha": 0.0001,
+               "alpha": 0.01,
                "penalty": "elasticnet",
                "l1_ratio": 0.,
                "shuffle": True,
@@ -124,22 +123,22 @@ if __name__ == '__main__':
     sgd = SGDClassifier()
     
     #==================================================================================================================
-    # #run randomized search to find the optimal parameters
+    # print 'Hyperparameter optimization via RandomizedSearchCV...'
     # n_iter_search = 12
     # random_search = RandomizedSearchCV(sgd, param_distributions=hinge_params, n_iter=n_iter_search)
     # random_search.fit(X, y)
     # best_params = report(random_search.grid_scores_)
     #==================================================================================================================
 
-    print 'Hyperparameter optimization...'
-    grid_search = GridSearchCV(sgd, perceptron_params, cv=20, n_jobs=-1, verbose=1)
+    print 'Hyperparameter optimization via GridSearchCV...'
+    grid_search = GridSearchCV(sgd, modified_huber_params, cv=25, n_jobs=-1, verbose=1)
     grid_search.fit(X, y)
     best_params = report(grid_search.grid_scores_)
     
     
     # Plot the learning curve for the model with the best parameters
     print 'Plotting learning curve...'
-    cv = ShuffleSplit(X.shape[0], n_iter=30, test_size=0.2, 
+    cv = ShuffleSplit(X.shape[0], n_iter=25, test_size=0.2, 
                       random_state=np.random.randint(0,123456789))
     title = "SGDClassifier: ", best_params
     sgd = SGDClassifier(**best_params)
@@ -161,7 +160,7 @@ if __name__ == '__main__':
     
      
     # write results
-    predictions_file = open("data/results/sgdclassifier-log_" + str(int(time.time())) + ".csv", "wb")
+    predictions_file = open("data/results/sgdclassifier-perceptron_" + str(int(time.time())) + ".csv", "wb")
     open_file_object = csv.writer(predictions_file)
     open_file_object.writerow(["PassengerId","Survived"])
     open_file_object.writerows(zip(ids, output))
