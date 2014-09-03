@@ -1,146 +1,30 @@
 """ 
 Kaggle Titanic competition
 
-Adapted from myfirstforest.py comitted by @AstroDave 
+This file experiments with non-linear support vector machine classifiers
 """
-import pandas as pd
+import loaddata
+import learningcurve
+
+import sys
 import numpy as np
 import time
 import csv as csv
-import re
-from sklearn.grid_search import RandomizedSearchCV
-from sklearn.svm import LinearSVC
-from scipy.stats import randint as sp_randint
+from sklearn.cross_validation import ShuffleSplit
+from sklearn.grid_search import RandomizedSearchCV, GridSearchCV
+from sklearn.svm import SVC
 from operator import itemgetter
 
 
 # Globals
 ############################3
-ports_dict = {}               # Holds the possible values of 'Embarked' variable
-
-cabinletter_matcher = re.compile("([a-zA-Z]+)")
-cabinnumber_matcher = re.compile("([0-9]+)")
 
 
 
 # Functions
 ############################
-
-### This method will transform the raw data into the features that the model will operate on
-def munge(df):     
-    # Gender => 'Female' = 0, 'Male' = 1
-    df['Gender'] = df['Sex'].map( {'female': 0, 'male': 1} ).astype(int)
- 
-    # Embarked => Four classes - 'C', 'Q', 'S', and NULL (create a separate class for unknown)
-    if len(df.Embarked[ df.Embarked.isnull() ]) > 0:
-        df.Embarked[ df.Embarked.isnull() ] = 'U'
- 
-    ports_dict = getPorts(df)
-    df.Embarked = df.Embarked.map( lambda x: ports_dict[x]).astype(int)     # Convert all Embark strings to int
-
-
-    # AgeClass => Six classes = Unknown(?), Baby(<3), Child(3-12), Teen(13-18), Adult(19-64), Senior(>65)
-    df['AgeClass'] = df['Age'].map( lambda x : getAgeClass(x) )
-
-
-    # Age => continuous value and missing values are replaced with median value
-    median_age = df['Age'].dropna().median()
-    if len(df.Age[ df.Age.isnull() ]) > 0:
-        df.loc[ (df.Age.isnull()), 'Age'] = median_age
-
-
-    # Fare => 
-    if len(df.Fare[ df.Fare.isnull() ]) > 0:
-        median_fare = np.zeros(3)
-        for f in range(0,3):                                              # loop 0 to 2
-            median_fare[f] = df[ df.Pclass == f+1 ]['Fare'].dropna().median()
-        for f in range(0,3):                                              # loop 0 to 2
-            df.loc[ (df.Fare.isnull()) & (df.Pclass == f+1 ), 'Fare'] = median_fare[f]
-    
-    # Cabin =>
-    df['Cabin'][df.Cabin.isnull()] = 'U0'
-    df['CabinLetter'] = df['Cabin'].map( lambda x : getCabinLetter(x))
-    df['CabinNumber'] = df['Cabin'].map( lambda x : getCabinNumber(x))
-    
-    return df
-
-
-### Simple method to split passengers into typical age groups
-def getAgeClass(age):
-    if np.isnan(age):
-        return 0
-    elif age < 3:
-        return 1
-    elif age < 13:
-        return 2
-    elif age < 19:
-        return 3
-    elif age < 65:
-        return 4
-    else:
-        return 5
-
-
-### This method will generate and/or return the dictionary of possible values of 'Embarked' => index for each value
-def getPorts(df):
-    global ports_dict
-    
-    if len(ports_dict) == 0:
-        # determine distinct values of 'Embarked' variable
-        ports = list(enumerate(np.unique(df['Embarked'])))
-        # set the global dictionary
-        ports_dict = { name : i for i, name in ports }
-    
-    return ports_dict
-
-#==================================================================================================================
-### Find the letter component of the cabin variable) 
-def getCabinLetter(cabin):
-    match = cabinletter_matcher.search(cabin)
-    if match:
-        return ord(match.group())
-    else:
-        return 'U'
- 
-### Find the number component of the cabin variable) 
-def getCabinNumber(cabin):
-    match = cabinnumber_matcher.search(cabin)
-    if match:
-        return float(match.group())
-    else:
-        return 0
-
-
-
-
-# Script
-###################################
-
-# read in the training and testing data into Pandas.DataFrame objects
-input_df = pd.read_csv('data/raw/train.csv', header=0)
-test_df  = pd.read_csv('data/raw/test.csv',  header=0)
-
-# data cleanup
-input_df = munge(input_df)
-test_df  = munge(test_df)
-
-# Collect the test data's PassengerIds
-ids = test_df['PassengerId'].values
-
-# Remove variables that we couldn't transform into features:
-input_df = input_df.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId'], axis=1) 
-test_df  = test_df.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId'], axis=1) 
-
-print 'Building Linear SVC with ' + str(len(input_df.columns)) \
-      + ' columns: ' + str(list(input_df.columns.values))
-    
-print "Number of training examples: " + str(input_df.shape[0])
-
-train_data = input_df.values
-test_data = test_df.values
-
 # Utility function to report optimal parameters
-def report(grid_scores, n_top=3):
+def report(grid_scores, n_top=5):
     params = None
     
     top_scores = sorted(grid_scores, key=itemgetter(1), reverse=True)[:n_top]
@@ -156,34 +40,111 @@ def report(grid_scores, n_top=3):
             params = score.parameters
     
     return params
+
+
+
+
+# Script
+###################################
+if __name__ == '__main__':
+        
+    # Do all the feature engineering
+    input_df, test_df = loaddata.getDataSets(raw=False, binary=True, bins=False)
+    test_df.drop('Survived', axis=1, inplace=1)
     
+    print 'All generated features: ' + str(list(input_df.columns.values))
+    
+    # Collect the test data's PassengerIds
+    ids = test_df['PassengerId'].values
+    
+    # Remove variables that aren't appropriate for this model:
+    drop_list = ['PassengerId', 'SibSp_scaled', 'Parch_scaled']
+    input_df.drop(drop_list, axis=1, inplace=1) 
+    test_df.drop(drop_list, axis=1, inplace=1) 
+    
+    print 'Building SVC with ', len(input_df.columns), ' columns: ', list(input_df.columns.values)
+    print "Number of training examples: ", input_df.shape[0]
+    
+    train_data = input_df.values
+    X = train_data[0::,1::]
+    y = train_data[0::,0]
+    test_data = test_df.values
+    
+    
+    # specify model parameters and distributions to sample from
+    rbf_params = {"kernel": ['rbf'],
+                    "class_weight": ['auto'],
+                    "C": [1],
+                    "gamma": [0.1],
+                    "tol": 10.0**-np.arange(2,4),
+                    "random_state": [1234567890]}
+    
+    poly_params = {"kernel": ['poly'],
+                    "class_weight": ['auto'],
+                    "degree": np.arange(2,5),
+                    "C": 10.0**np.arange(-2,6),
+                    "gamma": 10.0**np.arange(-3, 3),
+                    "coef0": 10.0**-np.arange(1,5),
+                    "tol": 10.0**-np.arange(1,3),
+                    "random_state": [1234567890]} # 4*9*7*5*3 = 3780 possible combinations
+   
+    sigmoid_params = {"kernel": ['sigmoid'],
+                        "class_weight": ['auto'],
+                        "C": 10.0**np.arange(-2,6),
+                        "gamma": 10.0**np.arange(-3, 3),
+                        "coef0": 10.0**-np.arange(1,5),
+                        "tol": 10.0**-np.arange(2,4),
+                        "random_state": [1234567890]}
+    
+    plot_params = {"kernel": 'rbf',
+                   "class_weight": 'auto',
+                   "C": 1,
+                   "gamma": 0.1,
+                   "tol": .01,
+                   "random_state": 1234567890}
+    
+    svc = SVC()
+    
+    #==============================================================================================================
+    # print 'Hyperparameter optimization via RandomizedSearchCV...'
+    # i = 10
+    # random_search = RandomizedSearchCV(svc, param_distributions=rbf_params, cv=5, n_iter=i, n_jobs=-1, verbose=2)
+    # random_search.fit(X, y)
+    # best_params = report(random_search.grid_scores_)
+    #==============================================================================================================
 
-# specify model parameters and distributions to sample from
-params = {"dual": [False],
-          "C": [0.01, 0.1, 0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
-          #"loss": ["l1", "l2"],
-          "penalty": ["l1", "l2"]}
-
-# run randomized search to find the optimal parameters
-n_iter_search = 30
-lsvc = LinearSVC()
-random_search = RandomizedSearchCV(lsvc, param_distributions=params, n_iter=n_iter_search)
-random_search.fit(train_data[0::,1::], train_data[0::,0])
-best_params = report(random_search.grid_scores_)
-
- 
-# Using the optimal parameters, predict the survival of the test set
-print 'Predicting...'
-lsvc = LinearSVC(**best_params)
-lsvc.fit(train_data[0::,1::], train_data[0::,0])
-#confidence = lsvc.decision_function(train_data[0::, 1::])
-lsvc.predict(test_data)
-output = lsvc.predict(test_data).astype(int)
- 
-# write results
-predictions_file = open("data/results/linearsvc" + str(int(time.time())) + ".csv", "wb")
-open_file_object = csv.writer(predictions_file)
-open_file_object.writerow(["PassengerId","Survived"])
-open_file_object.writerows(zip(ids, output))
-predictions_file.close()
-print 'Done.'
+    #==============================================================================================================
+    # print 'Hyperparameter optimization via GridSearchCV...'
+    # grid_search = GridSearchCV(svc, rbf_params, cv=20, n_jobs=-1, verbose=2)
+    # grid_search.fit(X, y)
+    # best_params = report(grid_search.grid_scores_)
+    #==============================================================================================================
+    
+    
+    # Plot the learning curve for the model with the best parameters
+    print 'Plotting learning curve...'
+    cv = ShuffleSplit(X.shape[0], n_iter=20, test_size=0.33, random_state=np.random.randint(0,123456789))
+    title = "SVC(RBF): ", plot_params
+    svc = SVC(**plot_params)
+    learningcurve.plot_learning_curve(svc, title, X, y, ylim=(0.5, 1.0), cv=cv, n_jobs=-1)
+    
+    
+    # Using the optimal parameters, predict the survival of the test set
+    print 'Predicting test set...'
+    #==================================================================================================================
+    # for train_ix, val_ix in cv:
+    #     sgd.fit(X[train_ix], y[train_ix])
+    #     val_pred = sgd.predict(X[val_ix])
+    #     print "cross val accuracy score: ", metrics.accuracy_score(y[val_ix], val_pred)
+    #==================================================================================================================
+    svc.fit(X, y)
+    output = svc.predict(test_data).astype(int)
+    
+     
+    # write results
+    predictions_file = open("data/results/svc-rbf_" + str(int(time.time())) + ".csv", "wb")
+    open_file_object = csv.writer(predictions_file)
+    open_file_object.writerow(["PassengerId","Survived"])
+    open_file_object.writerows(zip(ids, output))
+    predictions_file.close()
+    print 'Done.'
