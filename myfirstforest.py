@@ -4,27 +4,34 @@ Kaggle Titanic competition
 Adapted from myfirstforest.py comitted by @AstroDave 
 """
 import loaddata
+import learningcurve
 
-import pandas as pd
 import numpy as np
-import math
 import time
 import csv
 import sys
 import re
-import learningcurve
-import sklearn.cross_validation
+from sklearn import cross_validation
+from sklearn.grid_search import GridSearchCV
 from sklearn.grid_search import RandomizedSearchCV
+from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.ensemble import RandomForestClassifier
-from scipy.stats import randint as sp_randint
 from operator import itemgetter
+
+
+# Globals
+############################3
+ports_dict = {}               # Holds the possible values of 'Embarked' variable
+
+cabinletter_matcher = re.compile("([a-zA-Z]+)")
+cabinnumber_matcher = re.compile("([0-9]+)")
 
 
 
 # Functions
 ############################
 # Utility function to report optimal parameters
-def report(grid_scores, n_top=3):
+def report(grid_scores, n_top=18):
     params = None
     
     top_scores = sorted(grid_scores, key=itemgetter(1), reverse=True)[:n_top]
@@ -44,70 +51,89 @@ def report(grid_scores, n_top=3):
 
 # Script
 ###################################
-
-# Do all the feature engineering
-input_df, test_df = loaddata.getDataSets(binary=False, bins=False, scaled=False)
-test_df.drop('Survived', axis=1, inplace=1)
-
-# Collect the test data's PassengerIds
-ids = test_df['PassengerId'].values
-
-# Remove variables that aren't appropriate for this model:
-drop_list = ['Name', 'Sex', 'Ticket', 'Cabin', 'SibSp', 'Parch', 'PassengerId']
-input_df.drop(drop_list, axis=1, inplace=1) 
-test_df.drop(drop_list, axis=1, inplace=1) 
-
-print 'Building RandomForestClassifier with ' + str(len(input_df.columns)) \
-      + ' columns: ' + str(list(input_df.columns.values))
-
-print "Number of training examples: " + str(input_df.shape[0])
-
-train_data = input_df.values
-X = train_data[0::,1::]
-y = train_data[0::,0]
-test_data = test_df.values
-
-
-#==================================================================================================================
-# # specify model parameters and distributions to sample from
-# params = {"n_estimators": sp_randint(20, 100),
-#           "max_depth": [3, None],
-#           "max_features": sp_randint(1, train_data.shape[1] - 1),
-#           "min_samples_split": sp_randint(1, int(train_data.shape[0] / 10)),
-#           "min_samples_leaf": sp_randint(1, int(train_data.shape[0] / 20)),
-#           "bootstrap": [True, False],
-#           "criterion": ["gini", "entropy"]}
-# 
-# # run randomized search to find the optimal parameters
-# n_iter_search = 500
-# forest = RandomForestClassifier()
-# random_search = RandomizedSearchCV(forest, param_distributions=params, n_iter=n_iter_search)
-# random_search.fit(train_data[0::,1::], train_data[0::,0])
-# best_params = report(random_search.grid_scores_)
-#==================================================================================================================
-
-cv = sklearn.cross_validation.ShuffleSplit(X.shape[0], n_iter=10, train_size=0.8, test_size=0.2, 
-                                           random_state=np.random.randint(0,123456789))
-
-trees=100
-depth=round(math.ceil((len(input_df.columns)-1)/2.0))
-
-title = "RandomForestClassifier: n_estimators=" + str(trees) + ", max_depth=" + str(depth)
-forest = RandomForestClassifier(n_estimators=trees, max_depth=depth, oob_score=True)
-learningcurve.plot_learning_curve(forest, title, X, y, (0.6, 1.01), cv=cv, n_jobs=1)
-
-
-# Using the optimal parameters, predict the survival of the test set
-print "Predicting with n_estimators=" + str(trees) + ", max_depth=" + str(depth)
-forest = RandomForestClassifier(n_estimators=trees, max_depth=depth, oob_score=True).fit(X, y)
-print forest.oob_score_
-output = forest.predict(test_data).astype(int)
-
- 
-# write results
-predictions_file = open("data/results/randforest" + str(int(time.time())) + ".csv", "wb")
-open_file_object = csv.writer(predictions_file)
-open_file_object.writerow(["PassengerId","Survived"])
-open_file_object.writerows(zip(ids, output))
-predictions_file.close()
-print 'Done.'
+if __name__ == '__main__':
+    # Do all the feature engineering
+    print "Generating initial training/test sets"
+    input_df, test_df = loaddata.getDataSets(raw=False, binary=True, bins=False, scaled=True)
+    
+    # Collect the test data's PassengerIds then drop it from the train and test sets
+    ids = test_df['PassengerId'].values
+    drop_list = ['PassengerId']
+    input_df.drop(drop_list, axis=1, inplace=1) 
+    test_df.drop(drop_list, axis=1, inplace=1) 
+    
+    
+    # Run dimensionality reduction and clustering on the remaining feature set. This will return an unlabeled
+    # set of derived parameters along with the ClusterID so we can train multiple models for different groups
+    print "Final feature set before Reduction and Clustering: ", input_df.columns.values
+    print "Dimensionality Reduction and Clustering..."
+    input_df, test_df = loaddata.reduceAndCluster(input_df, test_df)
+    
+    
+    print 'Building RandomForestClassifier with ' + str(len(input_df.columns)) \
+          + ' columns: ' + str(list(input_df.columns.values))
+    
+    print "Number of training examples: " + str(input_df.shape[0])
+    
+    
+    print "*************Build X_train, X_test, and submission_data"
+    train_data = input_df.values
+    X = train_data[:, 1::]
+    y = train_data[:, 0]
+    X_train, X_test, y_train, y_test \
+        = cross_validation.train_test_split(X, y, test_size=0.2, random_state=np.random.randint(0,123456789))
+    submission_data = test_df.values
+    
+    
+    # specify model parameters and distributions to sample from
+    params = {"n_estimators": [2000, 4000],
+              "max_depth": [3,4,5],
+              "max_features": np.arange(3, int(np.round(np.sqrt([X_train.shape[1]])))),
+              "bootstrap": [True],
+              "oob_score": [True]}
+    
+    plot_params = {"n_estimators": 2000,
+                   "max_depth": 3,
+                   "max_features": 4,
+                   "bootstrap": True,
+                   "oob_score": True}
+    
+    forest = RandomForestClassifier()
+    
+    #==============================================================================================================
+    # print "Hyperparameter optimization using RandomizedSearchCV..."
+    # rand_search = RandomizedSearchCV(forest, params, n_jobs=-1, n_iter=20)
+    # rand_search.fit(X_train, y_train)
+    # best_params = report(rand_search.grid_scores_)
+    #==============================================================================================================
+    
+    #==============================================================================================================
+    # print "Hyperparameter optimization using GridSearchCV..."
+    # grid_search = GridSearchCV(forest, params, n_jobs=-1)
+    # grid_search.fit(X_train, y_train)
+    # best_params = report(grid_search.grid_scores_)
+    #==============================================================================================================
+    
+    print "Plot Learning Curve..."
+    cv = cross_validation.ShuffleSplit(X_train.shape[0], n_iter=3, test_size=0.25, \
+                                       random_state=np.random.randint(0,123456789))
+    title = "RandomForestClassifier with hyperparams: ", plot_params
+    forest = RandomForestClassifier(n_jobs=-1, **plot_params)
+    learningcurve.plot_learning_curve(forest, title, X_train, y_train, (0.6, 1.01), cv=cv, n_jobs=-1)
+    
+    
+    # Using the optimal parameters, predict the survival of the test set
+    print "Predicting test set for submission..."
+    forest.fit(X_train, y_train)
+    print "train set oob_score: ", forest.oob_score_
+    print "test set accuracy score: ", forest.score(X_test, y_test)
+    output = forest.predict(submission_data).astype(int)
+    
+     
+    # write results
+    predictions_file = open("data/results/randforest" + str(int(time.time())) + ".csv", "wb")
+    open_file_object = csv.writer(predictions_file)
+    open_file_object.writerow(["PassengerId","Survived"])
+    open_file_object.writerows(zip(ids, output))
+    predictions_file.close()
+    print 'Done.'
