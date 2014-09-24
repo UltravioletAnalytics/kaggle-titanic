@@ -43,16 +43,16 @@ def report(grid_scores, n_top=3):
 # Script
 ###################################
 
-input_df, test_df = loaddata.getDataSets(bins=False, scaled=False, raw=False)
+input_df, submit_df = loaddata.getDataSets(bins=False, scaled=False, raw=False)
 
 # Collect the test data's PassengerIds
-ids = test_df['PassengerId'].values
+ids = submit_df['PassengerId'].values
 
 # Remove variables that we couldn't transform into features: 
 drop_list = ['PassengerId']
 input_df.drop(drop_list, axis=1, inplace=1) 
-test_df.drop(drop_list, axis=1, inplace=1) 
-test_df.drop('Survived', axis=1, inplace=1)
+submit_df.drop(drop_list, axis=1, inplace=1) 
+submit_df.drop('Survived', axis=1, inplace=1)
 
 print 'Building Naive Bayes Classifier with ' + str(len(input_df.columns)) \
       + ' columns: ' + str(list(input_df.columns.values))
@@ -60,7 +60,7 @@ print 'Building Naive Bayes Classifier with ' + str(len(input_df.columns)) \
 train_data = input_df.values
 X = train_data[0::,1::]
 y = train_data[0::,0]
-test_data = test_df.values
+test_data = submit_df.values
 
 #==================================================================================================================
 # # specify model parameters and distributions to sample from

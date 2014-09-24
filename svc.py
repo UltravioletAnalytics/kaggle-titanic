@@ -49,18 +49,18 @@ def report(grid_scores, n_top=5):
 if __name__ == '__main__':
         
     # Do all the feature engineering
-    input_df, test_df = loaddata.getDataSets(raw=False, binary=True, bins=False)
-    test_df.drop('Survived', axis=1, inplace=1)
+    input_df, submit_df = loaddata.getDataSets(raw=False, binary=True, bins=False)
+    submit_df.drop('Survived', axis=1, inplace=1)
     
     print 'All generated features: ' + str(list(input_df.columns.values))
     
     # Collect the test data's PassengerIds
-    ids = test_df['PassengerId'].values
+    ids = submit_df['PassengerId'].values
     
     # Remove variables that aren't appropriate for this model:
-    drop_list = ['PassengerId', 'SibSp_scaled', 'Parch_scaled']
+    drop_list = ['PassengerId']
     input_df.drop(drop_list, axis=1, inplace=1) 
-    test_df.drop(drop_list, axis=1, inplace=1) 
+    submit_df.drop(drop_list, axis=1, inplace=1) 
     
     print 'Building SVC with ', len(input_df.columns), ' columns: ', list(input_df.columns.values)
     print "Number of training examples: ", input_df.shape[0]
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     train_data = input_df.values
     X = train_data[0::,1::]
     y = train_data[0::,0]
-    test_data = test_df.values
+    test_data = submit_df.values
     
     
     # specify model parameters and distributions to sample from
@@ -81,10 +81,10 @@ if __name__ == '__main__':
     
     poly_params = {"kernel": ['poly'],
                     "class_weight": ['auto'],
-                    "degree": np.arange(2,5),
-                    "C": 10.0**np.arange(-2,6),
-                    "gamma": 10.0**np.arange(-3, 3),
-                    "coef0": 10.0**-np.arange(1,5),
+                    "degree": [3],
+                    "C": 10.0**np.arange(-1,1),
+                    "gamma": 10.0**np.arange(-1, 1),
+                    "coef0": 10.0**-np.arange(1,2),
                     "tol": 10.0**-np.arange(1,3),
                     "random_state": [1234567890]} # 4*9*7*5*3 = 3780 possible combinations
    
@@ -96,22 +96,23 @@ if __name__ == '__main__':
                         "tol": 10.0**-np.arange(2,4),
                         "random_state": [1234567890]}
     
-    plot_params = {"kernel": 'rbf',
-                   "class_weight": 'auto',
+    plot_params = {"kernel": 'poly',
+                   "degree": 3,
                    "C": 1,
                    "gamma": 0.1,
                    "tol": .01,
+                   "class_weight": 'auto',
                    "random_state": 1234567890}
     
     svc = SVC()
     
-    #==============================================================================================================
-    # print 'Hyperparameter optimization via RandomizedSearchCV...'
-    # i = 10
-    # random_search = RandomizedSearchCV(svc, param_distributions=rbf_params, cv=5, n_iter=i, n_jobs=-1, verbose=2)
-    # random_search.fit(X, y)
-    # best_params = report(random_search.grid_scores_)
-    #==============================================================================================================
+    print 'Hyperparameter optimization via RandomizedSearchCV...'
+    i = 100
+    random_search = RandomizedSearchCV(svc, param_distributions=poly_params, cv=10, n_iter=i, n_jobs=-1, verbose=2)
+    random_search.fit(X, y)
+    best_params = report(random_search.grid_scores_)
+
+    sys.exit()
 
     #==============================================================================================================
     # print 'Hyperparameter optimization via GridSearchCV...'
@@ -124,10 +125,11 @@ if __name__ == '__main__':
     # Plot the learning curve for the model with the best parameters
     print 'Plotting learning curve...'
     cv = ShuffleSplit(X.shape[0], n_iter=20, test_size=0.33, random_state=np.random.randint(0,123456789))
-    title = "SVC(RBF): ", plot_params
-    svc = SVC(**plot_params)
+    title = "SVC(RBF): ", best_params
+    svc = SVC(**best_params)
     learningcurve.plot_learning_curve(svc, title, X, y, ylim=(0.5, 1.0), cv=cv, n_jobs=-1)
     
+    sys.exit()
     
     # Using the optimal parameters, predict the survival of the test set
     print 'Predicting test set...'
