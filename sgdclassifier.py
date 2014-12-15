@@ -173,9 +173,9 @@ if __name__ == '__main__':
     else:
         submission = np.concatenate([submission, passengerPredictions])
     
-    accuracy = ("%.3f"%(correct/X_test.shape[0])).lstrip('0')
+    oob = ("%.3f"%(correct/X_test.shape[0])).lstrip('0')
     print "**********************************"
-    print "total test set accuracy:", accuracy
+    print "total test set oob:", oob
     print "**********************************"
     
     print "Submission shape: ", submission.shape
@@ -185,7 +185,7 @@ if __name__ == '__main__':
     
      
     # write results
-    predictions_file = open("data/results/" + accuracy + "sgd-hinge_" + str(int(time.time())) + ".csv", "wb")
+    predictions_file = open("data/results/" + oob + "sgd-hinge_" + str(int(time.time())) + ".csv", "wb")
     open_file_object = csv.writer(predictions_file)
     open_file_object.writerow(["PassengerId","Survived"])
     open_file_object.writerows(output)

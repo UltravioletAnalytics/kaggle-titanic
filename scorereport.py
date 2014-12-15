@@ -2,9 +2,8 @@ import numpy as np
 from operator import itemgetter
 
 # Utility function to report optimal parameters
+# (adapted from http://scikit-learn.org/stable/auto_examples/randomized_search.html)
 def report(grid_scores, n_top=20):
-    print grid_scores
-    
     params = None
     #top_scores = sorted(grid_scores, cmp=compare_scores, reverse=True)[:n_top]
     top_scores = sorted(grid_scores, key=itemgetter(1), reverse=True)[:n_top]
@@ -21,7 +20,7 @@ def report(grid_scores, n_top=20):
     
     return params
 
-# Use mean-stddev as the parameter set's score to give extra bonus to less variable models
+# Use mean-stddev as the parameter set's score to give an extra bonus to more consistent models
 def compare_scores(x, y):
     dx = x._asdict()
     dy = y._asdict()
