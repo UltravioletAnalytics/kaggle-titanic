@@ -1,36 +1,35 @@
-""" 
-RandomForest 
+"""RandomForest
 """
 import loaddata
 import scorereport
 import learningcurve
 import roc_auc
-
-import cProfile
-import pandas as pd
 import numpy as np
 import time
 import csv
-import sys
-from sklearn import cross_validation
 from sklearn.grid_search import GridSearchCV
+from sklearn.grid_search import RandomizedSearchCV
 from sklearn.ensemble import RandomForestClassifier
 import matplotlib.pyplot as plt
 
-###
-# Custom scoring function for hyperparameter optimization. In this case, we want to print out the each score
-###
+
 def scoreForest(estimator, X, y):
+    """
+    Custom scoring function for hyperparameter optimization. In this case, we want to print out the oob score
+    """
     score = estimator.oob_score_
     print "oob_score_:", score
     return score
 
 
 if __name__ == '__main__':
+    """
+    Main script, this contains logic to execute the full pipeline to generate a RandomForest for the titanic data
+    """
     ##############################################################################################################
     # Prepare data for pipeline
     #
-    print "Generating initial training/test sets"
+    print "\nGenerating initial training/test sets"
     input_df, submit_df = loaddata.getDataSets(bins=True, scaled=True, binary=True)
     
     # Collect the test data's PassengerIds then drop it from the train and test sets
@@ -42,6 +41,8 @@ if __name__ == '__main__':
     features_list = input_df.columns.values[1::] # Save for feature importance graph
     X = input_df.values[:, 1::]
     y = input_df.values[:, 0]
+    
+    # Set the weights to adjust for uneven class distributions (fewer passengers survived than died)
     survived_weight = .75
     y_weights = np.array([survived_weight if s == 1 else 1 for s in y])
     
@@ -64,22 +65,20 @@ if __name__ == '__main__':
     #print "Indices of most important features:\n", important_idx
     
     important_features = features_list[important_idx]
-    print "\n", important_features.shape[0], "Important features(>", fi_threshold, "% of max importance):\n", \
-            important_features
+    print "\n", important_features.shape[0], "Important features(>", fi_threshold, "% of max importance)...\n"#, \
+            #important_features
     
     sorted_idx = np.argsort(feature_importance[important_idx])[::-1]
     
     # Plot feature importance
-    #==============================================================================================================
-    # pos = np.arange(sorted_idx.shape[0]) + .5
-    # plt.subplot(1, 2, 2)
-    # plt.barh(pos, feature_importance[important_idx][sorted_idx[::-1]], align='center')
-    # plt.yticks(pos, important_features[sorted_idx[::-1]])
-    # plt.xlabel('Relative Importance')
-    # plt.title('Variable Importance')
-    # plt.draw()
-    # plt.show()
-    #==============================================================================================================
+    pos = np.arange(sorted_idx.shape[0]) + .5
+    plt.subplot(1, 2, 2)
+    plt.barh(pos, feature_importance[important_idx][sorted_idx[::-1]], align='center')
+    plt.yticks(pos, important_features[sorted_idx[::-1]])
+    plt.xlabel('Relative Importance')
+    plt.title('Variable Importance')
+    plt.draw()
+    plt.show()
     
     # Remove non-important features from the feature set and submission sets
     X = X[:, important_idx][:, sorted_idx]
@@ -87,16 +86,17 @@ if __name__ == '__main__':
     
     submit_df = submit_df.iloc[:,important_idx].iloc[:,sorted_idx]
     print '\nTraining with', X.shape[1], "features:\n", submit_df.columns.values
-    print input_df.iloc[:,1::].iloc[:,important_idx].iloc[:,sorted_idx].head(10)
+    #print input_df.iloc[:,1::].iloc[:,important_idx].iloc[:,sorted_idx].head(10)
     
         
     ##############################################################################################################
-    # Hyperparameter Optimization
+    # Hyperparameter Optimization - uncomment one of the algorithms below to implement and update the "params"
+    # assignment in order to run optimization (which can take a while!)
     #
     sqrtfeat = int(np.sqrt(X.shape[1]))
-    print "sqrtfeat:", sqrtfeat
-    minsampsplit = X.shape[0]/80
-    print "minsampsplit:", minsampsplit
+    #print "sqrtfeat:", sqrtfeat
+    minsampsplit = int(X.shape[0]*0.015)
+    #print "minsampsplit:", minsampsplit
     
     
     # specify model parameters and distributions to sample from
@@ -123,8 +123,7 @@ if __name__ == '__main__':
     
     #==============================================================================================================
     # print "Hyperparameter optimization using GridSearchCV..."
-    # #cv = cross_validation.LeaveOneOut(X.shape[0])
-    # grid_search = GridSearchCV(forest, params_test, scoring=scoreForest, n_jobs=-1, cv=10, #cv=cv
+    # grid_search = GridSearchCV(forest, params_test, scoring=scoreForest, n_jobs=-1, cv=10,
     #                            fit_params={ 'sample_weight': y_weights})
     # grid_search.fit(X, y)
     # best_params = scorereport.report(grid_search.grid_scores_)
@@ -136,67 +135,29 @@ if __name__ == '__main__':
     
     
     
-    ##############################################################################################################
+    #############################################################################################################
     # Model generation/validation
     #
-    #==============================================================================================================
-    # print "Generating RandomForestClassifier model with parameters: ", params
-    # forest = RandomForestClassifier(n_jobs=-1, oob_score=True, **params)
-    # 
-    # print "\nCalculating Learning Curve..."
-    # cv = cross_validation.KFold(n=X.shape[0], n_folds=8, shuffle=True)
-    # title = "RandomForestClassifier with hyperparams: ", params
-    # midpoint, diff = \
-    #     learningcurve.plot_learning_curve(forest, title, X, y, (0.6, 1.01), cv=cv, n_jobs=-1, plot=False)
-    # print "Midpoint:", midpoint
-    # print "Diff:", diff
-    #==============================================================================================================
-    
-    roc_auc.generate_roc_curve(forest, X, y, plot=True)
-    
-    sys.exit()
+    print "Generating RandomForestClassifier model with parameters: ", params
+    forest = RandomForestClassifier(n_jobs=-1, oob_score=True, **params)
     
     
-    print "\nGenerating ROC curve 10 times to get mean AUC without class weights..."
+    print "\nCalculating Learning Curve..."
+    title = "RandomForestClassifier with hyperparams: ", params
+    midpoint, diff = \
+         learningcurve.plot_learning_curve(forest, title, X, y, (0.6, 1.01), cv=8, n_jobs=-1, plot=True)
+    #print "Midpoint:", midpoint
+    #print "Diff:", diff
+    
+        
+    print "\nGenerating ROC curve 5 times to get mean AUC with class weights..."
     aucs = []
-    for i in range(10):
-        aucs.append(roc_auc.generate_roc_curve(forest, X, y))
-    auc_mean = ("%.3f"%(np.mean(aucs))).lstrip('0')
-    auc_std = ("%.3f"%(np.std(aucs))).lstrip('0')
-    auc_lower = ("%.3f"%(np.mean(aucs)-np.std(aucs))).lstrip('0')
-    print "ROC - Area under curve:", auc_mean, "and stddev:", auc_std
-    
-    print "\nGenerating ROC curve 10 times to get mean AUC with class weights..."
-    aucs = []
-    for i in range(10):
+    for i in range(5):
         aucs.append(roc_auc.generate_roc_curve(forest, X, y, survived_weight))
     auc_mean = ("%.3f"%(np.mean(aucs))).lstrip('0')
     auc_std = ("%.3f"%(np.std(aucs))).lstrip('0')
     auc_lower = ("%.3f"%(np.mean(aucs)-np.std(aucs))).lstrip('0')
     print "ROC - Area under curve:", auc_mean, "and stddev:", auc_std
-    
-    
-    
-    print "\nFitting model 5 times to get mean OOB score using full training data without class weights..."
-    test_scores = []
-    # Using the optimal parameters, predict the survival of the labeled test set 10 times
-    for i in range(5):
-        forest.fit(X, y)
-        print "OOB:", forest.oob_score_
-        test_scores.append(forest.oob_score_)
-    
-    oob = ("%.3f"%(np.mean(test_scores))).lstrip('0')
-    oob_std = ("%.3f"%(np.std(test_scores))).lstrip('0')
-    oob_lower = ("%.3f"%(np.mean(test_scores) - np.std(test_scores))).lstrip('0')
-    print "OOB Mean:", oob, "and stddev:", oob_std
-    print "Est. correctly identified test examples:", np.mean(test_scores) * X.shape[0]
-    
-    print "\nSubmitting predicted labels for", submit_df.shape[0], "records without class weights..."
-    submission = np.asarray(zip(submit_ids, forest.predict(submit_df))).astype(int)
-    srv_pct = "%.3f"%(submission[:,1].mean())
-    print "Died/Survived: ", "%.3f"%(1-submission[:,1].mean()) , "/", srv_pct
-    # sort to ensure the passenger IDs are in the correct sequence
-    output = submission[submission[:,0].argsort()]
     
     
     print "\nFitting model 5 times to get mean OOB score using full training data with class weights..."
@@ -206,7 +167,6 @@ if __name__ == '__main__':
         forest.fit(X, y, sample_weight=y_weights)
         print "OOB:", forest.oob_score_
         test_scores.append(forest.oob_score_)
-    
     oob = ("%.3f"%(np.mean(test_scores))).lstrip('0')
     oob_std = ("%.3f"%(np.std(test_scores))).lstrip('0')
     oob_lower = ("%.3f"%(np.mean(test_scores) - np.std(test_scores))).lstrip('0')
@@ -223,11 +183,11 @@ if __name__ == '__main__':
     print "Survived weight:", survived_weight
     srv_pct = "%.3f"%(submission[:,1].mean())
     print "Died/Survived: ", "%.3f"%(1-submission[:,1].mean()) , "/", srv_pct
+    
     # sort to ensure the passenger IDs are in the correct sequence
     output = submission[submission[:,0].argsort()]
     
-    
-    # write results
+    # write results to a file
     name = "rfc" + str(int(time.time())) + "_AUC-" + auc_lower + "_OOB-" + oob_lower + "_SRV(" +\
             str(survived_weight) + ")-" + srv_pct + ".csv"
     print "Generating results file:", name

@@ -1,5 +1,4 @@
-'''
-Handles all the data preparation including: feature engineering, dimensionality reduction, and clustering
+'''Handles all the data preparation including: feature engineering, dimensionality reduction, and clustering
 
 Inspiration for the feature engineering had several sources:
 
@@ -7,37 +6,31 @@ http://trevorstephens.com/post/73461351896/titanic-getting-started-with-r-part-4
 http://triangleinequality.wordpress.com/2013/09/08/basic-feature-engineering-with-the-titanic-data/
 http://www.sgzhaohang.com/blog/tag/kaggle/
 '''
+
 import re
-import sys
 import numpy as np
 import pandas as pd
 import random as rd
 from sklearn import preprocessing
 from sklearn.cluster import KMeans
-from sklearn.cluster import MeanShift
-from sklearn.cluster import AffinityPropagation
-from sklearn.cluster import AgglomerativeClustering
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.decomposition import PCA
-import matplotlib.pyplot as plt
 
-
-
-np.set_printoptions(precision=4, threshold=10000, linewidth=255, edgeitems=999, suppress=True)
+# Print options
+np.set_printoptions(precision=4, threshold=10000, linewidth=160, edgeitems=999, suppress=True)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
-pd.set_option('display.width', 255)
+pd.set_option('display.width', 160)
 pd.set_option('expand_frame_repr', False)
 pd.set_option('precision', 4)
     
 
-
-# Functions
-#############################
-
-### Cabin numbers, when present, contain a single (or space-delimited list) cabin number that is composed of
-### a letter and number with no space or other character between. This is a sparse variable: < 30% is populated
-def processCabin():     
+def processCabin():   
+    """ Generate features from the Cabin variable
+    
+    Cabin numbers, when present, contain a single (or space-delimited list) cabin number that is composed of
+    a letter and number with no space or other character between. This is a sparse variable: < 30% is populated
+    """  
     global df
     # Replace missing values with "U0"
     df['Cabin'][df.Cabin.isnull()] = 'U0'
@@ -59,8 +52,10 @@ def processCabin():
         df['CabinNumber_scaled'] = scaler.fit_transform(df['CabinNumber'])
 
 
-### Find the letter component of the cabin variable) 
 def getCabinLetter(cabin):
+    """
+    Find the letter component of the Cabin variable
+    """
     match = re.compile("([a-zA-Z]+)").search(cabin)
     if match:
         return match.group()
@@ -68,15 +63,21 @@ def getCabinLetter(cabin):
         return 'U'
 
 
-### Find the number component of the cabin variable) 
 def getCabinNumber(cabin):
+    """
+    Find the number component of the Cabin variable
+    """
     match = re.compile("([0-9]+)").search(cabin)
     if match:
         return match.group()
     else:
         return 0
 
+
 def processTicket():
+    """
+    Generate features from the Ticket variable
+    """
     global df
     
     df['TicketPrefix'] = df['Ticket'].map( lambda x : getTicketPrefix(x.upper()))
@@ -105,15 +106,18 @@ def processTicket():
         scaler = preprocessing.StandardScaler()
         df['TicketNumber_scaled'] = scaler.fit_transform(df['TicketNumber'])
 
-    
-### Find the letter component of the ticket variable) 
+
 def getTicketPrefix(ticket):
+    """
+    Find the letter component of the ticket variable)
+    """
     match = re.compile("([a-zA-Z\.\/]+)").search(ticket)
     if match:
         return match.group()
     else:
         return 'U'
 
+### Find the numerical component of the ticket variable) 
 def getTicketNumber(ticket):
     match = re.compile("([\d]+$)").search(ticket)
     if match:
@@ -121,10 +125,8 @@ def getTicketNumber(ticket):
     else:
         return '0'
 
-    
 
-### Build 5 bins for ticket prices to create binary features
-###   param df - contains the entire Dataframe with all data from train and test
+### Generate features from the ticket price
 def processFare():
     global df
             
@@ -156,7 +158,7 @@ def processFare():
         df.drop('Fare_bin', axis=1, inplace=True)
     
 
-# Build binary features from 3-valued categorical feature
+### Build binary features from 3-valued categorical feature
 def processEmbarked():
     global df
     
@@ -170,7 +172,8 @@ def processEmbarked():
     if keep_binary:
         df = pd.concat([df, pd.get_dummies(df['Embarked']).rename(columns=lambda x: 'Embarked_' + str(x))], axis=1)
    
-
+   
+### Generate features based on the passenger class
 def processPClass():
     global df
     
@@ -185,6 +188,8 @@ def processPClass():
         scaler = preprocessing.StandardScaler()
         df['Pclass_scaled'] = scaler.fit_transform(df['Pclass'])
 
+
+### Generate features from the SibSp and Parch variables
 def processFamily():
     global df
     
@@ -205,11 +210,13 @@ def processFamily():
         df = pd.concat([df, sibsps, parchs], axis=1)
     
 
+### Convert the Sex variable from a string to binary
 def processSex():
     global df
     df['Gender'] = np.where(df['Sex'] == 'male', 1, 0)
     
 
+### Generate features from the Name variable
 def processName():
     global df
     # how many different names do they have? 
@@ -242,14 +249,7 @@ def processName():
         df['Title_id_scaled'] = scaler.fit_transform(df['Title_id'])
     
 
-def processUnused():
-    global df
-    if not keep_raw:
-        df.drop(['Ticket'], axis=1, inplace=True)
-
-
-### Build 5 bins for Ages to create binary features
-###   param df - contains the entire Dataframe with all data from train and test
+### Generate features from the Age variable
 def processAge():
     global df
     setMissingAges()
@@ -278,7 +278,7 @@ def processAge():
         df.drop('Age_bin', axis=1, inplace=True)
     
 
-### Populate missing ages  using RandomForestClassifier
+### Populate missing ages using a RandomForestClassifier
 def setMissingAges():
     global df
     
@@ -288,42 +288,62 @@ def setMissingAges():
     
     rtr = RandomForestRegressor(n_estimators=2000, n_jobs=-1)
     rtr.fit(X, y)
-    
-    #==============================================================================================================
-    # # Plot feature importance
-    # feature_importance = rtr.feature_importances_
-    # # make importances relative to max importance
-    # feature_importance = 100.0 * (feature_importance / feature_importance.max())
-    # sorted_idx = np.argsort(feature_importance)
-    # pos = np.arange(sorted_idx.shape[0]) + .5
-    # plt.subplot(1, 2, 2)
-    # plt.barh(pos, feature_importance[sorted_idx], align='center')
-    # plt.yticks(pos, age_df.columns.values[1::][sorted_idx])
-    # plt.xlabel('Relative Importance')
-    # plt.title('Variable Importance')
-    # plt.draw()
-    # plt.show()
-    #==============================================================================================================
-    
+        
     predictedAges = rtr.predict(age_df.loc[ (df.Age.isnull()) ].values[:, 1::])
     df.loc[ (df.Age.isnull()), 'Age' ] = predictedAges 
 
 
-# Keep the raw list until the very end even if raw values are not retained so that interaction
-# parameters can be created
+### Keep the raw list until the very end even if raw values are not retained so that interaction
+### parameters can be created
 def processDrops():
     global df
     rawDropList = ['Name', 'Names', 'Title', 'Sex', 'SibSp', 'Parch', 'Pclass', 'Embarked', \
-                   'Cabin', 'CabinLetter', 'CabinNumber', 'Age', 'Fare', 'TicketNumber']
-    stringsDropList = ['Title', 'Name', 'Cabin', 'Ticket', 'Sex', 'TicketNumber']
+                   'Cabin', 'CabinLetter', 'CabinNumber', 'Age', 'Fare', 'Ticket', 'TicketNumber']
+    stringsDropList = ['Title', 'Name', 'Cabin', 'Ticket', 'Sex', 'Ticket', 'TicketNumber']
     if not keep_raw:
         df.drop(rawDropList, axis=1, inplace=True)
     elif not keep_strings:
         df.drop(stringsDropList, axis=1, inplace=True)
 
-### Performs all feature engineering tasks including populating missing values, generating binary categorical
-### features, scaling, and other transformations
-def getDataSets(binary=False, bins=False, scaled=False, raw=True, pca=False, balanced=False, strings=False):
+
+def getDataSets(binary=False, bins=False, scaled=False, strings=False, raw=True, pca=False, balanced=False):
+    """
+    Performs all feature engineering tasks including populating missing values, generating binary categorical
+    features, scaling, and other transformations. The boolean parameters of this function will allow fine-grained
+    control of what types of features to return, so that it can be used by multiple ML algorithms
+    
+    Parameters
+    ==========
+    binary - boolean
+        whether or not to include binary features in the data set
+    
+    bins - boolean
+        whether or not to include binned features in the data set
+    
+    scaled - boolean
+        whether or not to include scaled features in the data set
+    
+    strings - boolean
+        whether or not to include features that are strings in the data set
+    
+    raw - boolean
+        whether or not to include raw features in the data set
+    
+    pca - boolean
+        whether or not to perform PCA on the data set
+    
+    balanced - boolean
+        whether or not to perform up sampling on the survived examples to balance the class distributions
+    
+    Returns
+    =======
+    input_df - array-like
+        The labeled training data
+    
+    submit_df - array-like
+        The unlabled test data to predict and submit
+    
+    """
     global keep_binary, keep_bins, keep_scaled, keep_raw, keep_strings, df
     keep_binary = binary
     keep_bins = bins
@@ -347,6 +367,7 @@ def getDataSets(binary=False, bins=False, scaled=False, raw=True, pca=False, bal
     # the remaining columns need to be reindexed so we can access the first column at '0' instead of '1'
     df = df.reindex_axis(input_df.columns, axis=1)
     
+    # process the individual variables present in the raw data
     processCabin()
     processTicket()
     processName()
@@ -355,7 +376,6 @@ def getDataSets(binary=False, bins=False, scaled=False, raw=True, pca=False, bal
     processFamily()
     processSex()
     processPClass()
-    processUnused()
     processAge()
     processDrops()
     
@@ -368,8 +388,8 @@ def getDataSets(binary=False, bins=False, scaled=False, raw=True, pca=False, bal
     
     print "Starting with", df.columns.size, "manually generated features...\n", df.columns.values
         
-    #****************************************************************************
-    # Feature generation
+    #*********************************************************************************************************
+    # Automated feature generation based on basic math on scaled features
     numerics = df.loc[:, ['Age_scaled', 'Fare_scaled', 'Pclass_scaled', 'Parch_scaled', 'SibSp_scaled', 
                           'Names_scaled', 'CabinNumber_scaled', 'Age_bin_id_scaled', 'Fare_bin_id_scaled']]
     print "\nFeatures used for automated feature generation:\n", numerics.head(10)
@@ -392,10 +412,10 @@ def getDataSets(binary=False, bins=False, scaled=False, raw=True, pca=False, bal
                 df = pd.concat([df, pd.Series(numerics.iloc[:,i] - numerics.iloc[:,j], name=name)], axis=1)
                 new_fields_count += 2
       
-    print new_fields_count, "new features generated"
+    print "\n", new_fields_count, "new features generated"
     
     
-    #*****************************************************************************
+    #*********************************************************************************************************
     # Use Spearman correlation to remove highly correlated features
     
     # calculate the correlation matrix
@@ -418,14 +438,13 @@ def getDataSets(binary=False, bins=False, scaled=False, raw=True, pca=False, bal
         #print col, "highly correlated with:", corr
         drops = np.union1d(drops, corr)
     
-    print "\nDropping", drops.shape[0], "highly correlated features...\n", drops
+    print "\nDropping", drops.shape[0], "highly correlated features...\n" #, drops
     df.drop(drops, axis=1, inplace=True)
     
     
-    
-    #*****************************************************************************
-    
-    
+    #*********************************************************************************************************
+    # Split the data sets apart again, perform PCA/clustering/class balancing if necessary
+    #
     input_df = df[:input_df.shape[0]] 
     submit_df  = df[input_df.shape[0]:]
     
@@ -436,7 +455,7 @@ def getDataSets(binary=False, bins=False, scaled=False, raw=True, pca=False, bal
         # drop the empty 'Survived' column for the test set that was created during set concatentation
         submit_df.drop('Survived', axis=1, inplace=1)
     
-    print "\n", input_df.columns.size, "initial features generated:\n", input_df.columns.values
+    print "\n", input_df.columns.size, "initial features generated...\n" #, input_df.columns.values
     
     if balanced:
         # Undersample training examples of passengers who did not survive
@@ -450,8 +469,13 @@ def getDataSets(binary=False, bins=False, scaled=False, raw=True, pca=False, bal
     return input_df, submit_df
 
 
-### Takes the train and test data frames and performs dimensionality reduction and clustering
-def reduceAndCluster(input_df, submit_df, clusters=2):
+def reduceAndCluster(input_df, submit_df, clusters=3):
+    """
+    Takes the train and test data frames and performs dimensionality reduction with PCA and clustering
+    
+    This was part of some experimentation and wasn't used for top scoring submissions. Leaving it in for reference
+    """
+    
     # join the full data together
     df = pd.concat([input_df, submit_df])
     df.reset_index(inplace=True)
@@ -523,15 +547,16 @@ def reduceAndCluster(input_df, submit_df, clusters=2):
 
 
 if __name__ == '__main__':
+    """
+    Test script to make sure everything is running about right
+    
+    I did some experiments with clustering and trying to build separate models for each cluster, but I couldn't
+    get even sized clusters even with significant tweaking
+    """
     train, test = getDataSets(bins=True, scaled=True, binary=True)
     drop_list = ['PassengerId']
     train.drop(drop_list, axis=1, inplace=1) 
     test.drop(drop_list, axis=1, inplace=1)
-    
-    #==============================================================================================================
-    # print train.drop('Survived', axis=1).columns.values
-    # print train.drop('Survived', axis=1).head()
-    #==============================================================================================================
     
     train, test = reduceAndCluster(train, test)
     

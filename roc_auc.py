@@ -7,10 +7,7 @@ http://en.wikipedia.org/wiki/Receiver_operating_characteristic
 '''
 
 import loaddata
-
-import sys
 import numpy as np
-
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 from sklearn.ensemble import RandomForestClassifier
@@ -18,6 +15,9 @@ from sklearn.cross_validation import train_test_split
 
 
 def generate_roc_curve(clf, X, y, survived_weight=1, plot=False):
+    """
+    Generates an ROC curve and calculates the AUC 
+    """
     # shuffle and split training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.25)
     weights = np.array([survived_weight if s == 1 else 1 for s in y_train])
@@ -44,6 +44,9 @@ def generate_roc_curve(clf, X, y, survived_weight=1, plot=False):
     return roc_auc
 
 if __name__ == "__main__":
+    """
+    Test method
+    """
     print "Testing ROC Curve..."
     input_df, _ = loaddata.getDataSets(bins=True, scaled=True, binary=True)
     input_df.drop("PassengerId", axis=1, inplace=True)

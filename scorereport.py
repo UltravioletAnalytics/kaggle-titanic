@@ -1,11 +1,23 @@
 import numpy as np
 from operator import itemgetter
 
-# Utility function to report optimal parameters
-# (adapted from http://scikit-learn.org/stable/auto_examples/randomized_search.html)
-def report(grid_scores, n_top=20):
+
+def report(grid_scores, n_top=10):
+    """
+    Output a simple report of the top parameter sets from hyperparameter optimization
+    
+    adapted from http://scikit-learn.org/stable/auto_examples/randomized_search.html
+    
+    Parameters
+    ----------
+    grid_scores : array-like, shape (# of combinations tested)
+        The scores of all parameter sets tested in the grid/randomized search
+
+    n_top : int
+        The top N number of models we want to report results for. Defaults to top 10.
+    """
     params = None
-    #top_scores = sorted(grid_scores, cmp=compare_scores, reverse=True)[:n_top]
+    #top_scores = sorted(grid_scores, cmp=compare_scores, reverse=True)[:n_top] # custom sorting
     top_scores = sorted(grid_scores, key=itemgetter(1), reverse=True)[:n_top]
     for i, score in enumerate(top_scores):
         print("Parameters with rank: {0}".format(i + 1))
@@ -20,8 +32,12 @@ def report(grid_scores, n_top=20):
     
     return params
 
-# Use mean-stddev as the parameter set's score to give an extra bonus to more consistent models
+
 def compare_scores(x, y):
+    """
+    Custom scoring function uses mean-stddev as the parameter set's score to give an extra bonus 
+    to more consistent models
+    """
     dx = x._asdict()
     dy = y._asdict()
     xstd = np.std(dx['cv_validation_scores'])
