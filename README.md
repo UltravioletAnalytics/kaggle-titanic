@@ -4,12 +4,12 @@ kaggle-titanic
 This is the python/scikit-learn code I wrote during my stab at the Kaggle titanic competition. There is code for several different algorithms, but the primary and highest performing one is the RandomForest implemented in randomforest2.py.
 
 Requirements:
-    - python (a 2.x release at least 2.6)
-    - scikit-learn/NumPy/SciPy (http://scikit-learn.org/stable/install.html)
-    - pandas (http://pandas.pydata.org/pandas-docs/stable/install.html)
-    - matplotlib (http://matplotlib.org/faq/installing_faq.html)
+- python (a 2.x release at least 2.6)
+- scikit-learn/NumPy/SciPy (http://scikit-learn.org/stable/install.html)
+- pandas (http://pandas.pydata.org/pandas-docs/stable/install.html)
+- matplotlib (http://matplotlib.org/faq/installing_faq.html)
 
-Usage:
+Usage:<br/>
     > python randomforest2.py
 
 Key files:
